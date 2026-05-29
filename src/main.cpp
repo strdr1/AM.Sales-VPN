@@ -26,6 +26,7 @@
 #include "LogController.h"
 #include "AdminCheck.h"
 #include "CursorHelper.h"
+#include "TrayMenuHelper.h"
 
 int main(int argc, char *argv[])
 {
@@ -34,7 +35,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     QApplication::setApplicationName(QStringLiteral("AM.SALES VPN"));
-    QApplication::setApplicationVersion(QStringLiteral("1.0.8"));
+    QApplication::setApplicationVersion(QStringLiteral("1.0.11"));
     QApplication::setOrganizationName(QStringLiteral("AM.SALES"));
     // Не выходим при закрытии окна — приложение живёт в трее.
     QApplication::setQuitOnLastWindowClosed(false);
@@ -77,6 +78,7 @@ int main(int argc, char *argv[])
     DiagController diag;                // диагностика «почему не работает»
     UpdateChecker updater(&store);      // проверка обновлений (с хранилищем)
     CursorHelper cursor;                // глобальные позиция/кнопки мыши
+    TrayMenuHelper trayMenu;            // нативное Windows-меню трея
 
     // ── Логируем ключевые события каждого контроллера в LogController ───
     // Подписываемся на сигналы — никаких знаний о LogController в самих
@@ -130,6 +132,21 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("Updater"), &updater);
     engine.rootContext()->setContextProperty(QStringLiteral("Logs"), &logs);
     engine.rootContext()->setContextProperty(QStringLiteral("Cursor"), &cursor);
+    engine.rootContext()->setContextProperty(QStringLiteral("TrayMenu"), &trayMenu);
+
+    // Связываем нативное меню трея с действиями приложения.
+    QObject::connect(&trayMenu, &TrayMenuHelper::vpnToggle, &vless, [&]() {
+        if (vless.connected() || vless.connecting()) {
+            vless.disconnectVpn();
+            zapret.stop();
+        } else {
+            if (vless.useZapret()) zapret.start();
+            vless.connectVpn();
+        }
+    });
+    QObject::connect(&trayMenu, &TrayMenuHelper::openLogs, &logs, &LogController::openLogsFolder);
+    QObject::connect(&trayMenu, &TrayMenuHelper::quit, &app, &QCoreApplication::quit);
+    // openWindow — обрабатываем в QML (нужен showWindow), там слот висит.
 
     // ── Загружаем главный интерфейс ─────────────────────────────────────
     // Если QML не загрузится (ошибка синтаксиса) — приложение закроется.

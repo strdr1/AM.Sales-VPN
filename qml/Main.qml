@@ -46,13 +46,10 @@ Window {
     property bool reallyQuit: false
 
     // ── Иконка в системном трее ─────────────────────────────────────────
-    // На Windows + elevated-процесс Qt 6.8 у Qt.labs.platform.SystemTrayIcon
-    // глючит автоматическое открытие menu: ОС присылает Click/Trigger
-    // вместо Context (UIPI режет часть оконных сообщений к elevated-окну).
-    // Поэтому открываем меню САМИ на любой клик: ЛКМ показывает окно, ПКМ
-    // (или любой другой) — открывает меню через popup(null, screenPos),
-    // где screenPos берём из глобальной позиции курсора (QCursor через
-    // вспомогательный хелпер ниже).
+    // Меню рисуется НАТИВНЫМ Windows-API (TrackPopupMenu) — это
+    // настоящее системное меню как у Steam/Discord/OBS. Открывается ровно
+    // у курсора, нормально себя ведёт под elevated-процессом, не зависит
+    // от QML-позиционирования. См. src/TrayMenuHelper.h.
     Platform.SystemTrayIcon {
         id: tray
         visible: true
@@ -61,80 +58,26 @@ Window {
                           : qsTr("AM.SALES VPN — отключено")
 
         onActivated: function(reason) {
-            // В лог — какой reason пришёл (Trigger=1, Context=2, DblClk=3).
             Logs.log("TRAY", "DBG", "activated reason=" + reason);
+            // Win11 + elevated: Qt не различает ЛКМ/ПКМ (UIPI режет
+            // WM_RBUTTONUP), и GetAsyncKeyState уже видит кнопку
+            // отпущенной к моменту onActivated. Поэтому поведение как у
+            // Discord: одиночный клик ЛЮБОЙ кнопкой = меню,
+            // двойной клик = открыть окно.
             if (reason === Platform.SystemTrayIcon.DoubleClick) {
                 win.showWindow();
-                return;
-            }
-            // Снимаем позицию курсора СЕЙЧАС (потом он может уехать).
-            const p = Cursor.pos;
-            if (reason === Platform.SystemTrayIcon.Context
-             || Cursor.rightPressed) {
-                trayMenu.popupAt(p.x, p.y);
             } else {
-                win.showWindow();
+                Logs.log("TRAY", "DBG", "calling TrayMenu.show");
+                TrayMenu.show(win.isOn);
+                Logs.log("TRAY", "DBG", "returned from TrayMenu.show");
             }
         }
     }
 
-    // ── Меню трея (QML, полностью кастомное) ────────────────────────────
-    // popupAt(x,y) — открывает у точки в экранных координатах.
-    Menu {
-        id: trayMenu
-        modal: true
-        // Без parent — координаты x,y интерпретируются как глобальные (экран).
-        // Фиксированная ширина — чтобы выглядело аккуратно.
-        implicitWidth: 220
-        padding: 6
-        background: Rectangle {
-            color: "#0E140E"
-            border.color: Qt.rgba(1,1,1,0.14); border.width: 1
-        }
-        function popupAt(px, py) {
-            // Открываем выше курсора (трей внизу экрана) и чуть левее,
-            // чтобы меню не свешивалось за правый край.
-            const w = trayMenu.implicitWidth;
-            const h = trayMenu.contentItem.implicitHeight + 12;
-            trayMenu.x = Math.max(0, px - w + 10);
-            trayMenu.y = py - h - 4;
-            trayMenu.open();
-        }
-        // Делегат пункта — наш стиль, чтобы текст был ВИДИМЫЙ (без него
-        // Controls.Basic рисует тёмно-серый текст на тёмном фоне и кажется
-        // disabled).
-        delegate: MenuItem {
-            id: mi
-            implicitWidth: 220
-            implicitHeight: 32
-            background: Rectangle {
-                color: mi.highlighted ? Qt.rgba(win.accent.r, win.accent.g, win.accent.b, 0.18)
-                                      : "transparent"
-            }
-            contentItem: Text {
-                text: mi.text
-                color: mi.highlighted ? win.accent : win.textHi
-                font.pixelSize: 13
-                verticalAlignment: Text.AlignVCenter
-                leftPadding: 12; rightPadding: 12
-            }
-        }
-
-        MenuItem {
-            text: win.isOn ? qsTr("Отключить VPN") : qsTr("Подключить VPN")
-            onTriggered: {
-                if (win.isOn || win.isBusy) { Vpn.disconnectVpn(); Zapret.stop(); }
-                else { if (Vpn.useZapret) Zapret.start(); Vpn.connectVpn(); }
-            }
-        }
-        MenuSeparator {}
-        MenuItem { text: qsTr("Открыть окно");  onTriggered: win.showWindow() }
-        MenuItem { text: qsTr("Папка логов");   onTriggered: Logs.openLogsFolder() }
-        MenuSeparator {}
-        MenuItem {
-            text: qsTr("Выход")
-            onTriggered: { win.reallyQuit = true; Qt.quit(); }
-        }
+    // Слот для пункта "Открыть окно" — Qt-сигнал прилетает из C++.
+    Connections {
+        target: TrayMenu
+        function onOpenWindow() { win.showWindow(); }
     }
 
     // Показать и поднять окно из трея.

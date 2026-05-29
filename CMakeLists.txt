@@ -41,6 +41,7 @@ qt_add_executable(AmSalesVPN
     src/LogController.cpp
     src/AdminCheck.h
     src/CursorHelper.h
+    src/TrayMenuHelper.h
 )
 
 # ── Подключаем QML-модуль (наш интерфейс) ───────────────────────────────
