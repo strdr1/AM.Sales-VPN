@@ -1,5 +1,5 @@
 {
-  "version": "1.0.12",
+  "version": "1.0.13",
   "url": "https://github.com/strdr1/AM.Sales-VPN/releases/latest/download/AmSalesVPN-Setup.exe",
-  "notes": "v1.0.12: новый сервер 78.17.103.241 (2 встроенных ключа AM.SALES-1/2). Keep-alive: соединение не отключается — каждые 15 сек проверяется, при обрыве автоматически переподключается. На сервере systemd Restart=always."
+  "notes": "v1.0.13: Cloudflare-ключ AM.SALES-CF (для провайдеров с DPI) теперь автоматически обновляется каждые 30 минут — сервер раздаёт текущий quick-tunnel host через endpoint, клиент сам пересобирает ключ. В Опциях — кнопка «Обновить Cloudflare-ключ»."
 }

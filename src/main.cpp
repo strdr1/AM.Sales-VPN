@@ -27,6 +27,7 @@
 #include "AdminCheck.h"
 #include "CursorHelper.h"
 #include "TrayMenuHelper.h"
+#include "CfController.h"
 
 int main(int argc, char *argv[])
 {
@@ -35,7 +36,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     QApplication::setApplicationName(QStringLiteral("AM.SALES VPN"));
-    QApplication::setApplicationVersion(QStringLiteral("1.0.12"));
+    QApplication::setApplicationVersion(QStringLiteral("1.0.13"));
     QApplication::setOrganizationName(QStringLiteral("AM.SALES"));
     // Не выходим при закрытии окна — приложение живёт в трее.
     QApplication::setQuitOnLastWindowClosed(false);
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
     UpdateChecker updater(&store);      // проверка обновлений (с хранилищем)
     CursorHelper cursor;                // глобальные позиция/кнопки мыши
     TrayMenuHelper trayMenu;            // нативное Windows-меню трея
+    CfController cf(&store, &vless);    // авто-обновление Cloudflare-ключа
 
     // ── Логируем ключевые события каждого контроллера в LogController ───
     // Подписываемся на сигналы — никаких знаний о LogController в самих
@@ -133,6 +135,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("Logs"), &logs);
     engine.rootContext()->setContextProperty(QStringLiteral("Cursor"), &cursor);
     engine.rootContext()->setContextProperty(QStringLiteral("TrayMenu"), &trayMenu);
+    engine.rootContext()->setContextProperty(QStringLiteral("Cf"), &cf);
 
     // Связываем нативное меню трея с действиями приложения.
     QObject::connect(&trayMenu, &TrayMenuHelper::vpnToggle, &vless, [&]() {

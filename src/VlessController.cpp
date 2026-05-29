@@ -343,6 +343,32 @@ void VlessController::addKey(const QString &vlessUri)
     setStatus(QStringLiteral("Ключ добавлен: %1").arg(s.name));
 }
 
+void VlessController::reloadFromStore()
+{
+    if (!m_store) return;
+    // Полная перезагрузка: пересобираем m_serversData с нуля по тому что
+    // лежит в Store. Текущий currentServer стараемся сохранить.
+    const QString currentRaw = (m_currentServer >= 0 && m_currentServer < m_serversData.size())
+                               ? m_serversData[m_currentServer].rawUri : QString();
+    m_serversData.clear();
+    const QStringList saved = m_store->keys();
+    for (const QString &uri : saved) {
+        const Server s = parseVless(uri);
+        if (s.valid) m_serversData.append(s);
+    }
+    // Восстановим выделение по rawUri (если ключ всё ещё есть).
+    if (!currentRaw.isEmpty()) {
+        for (int i = 0; i < m_serversData.size(); ++i) {
+            if (m_serversData[i].rawUri == currentRaw) {
+                m_currentServer = i;
+                emit currentServerChanged();
+                break;
+            }
+        }
+    }
+    rebuildServerList();
+}
+
 void VlessController::loadSubscription(const QString &url)
 {
     // happ://add/<real-url> → достаём настоящий URL.

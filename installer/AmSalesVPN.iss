@@ -4,7 +4,7 @@
 ; ─────────────────────────────────────────────────────────────────────────
 
 #define AppName "AM.SALES VPN"
-#define AppVersion "1.0.12"
+#define AppVersion "1.0.13"
 #define AppPublisher "AM.SALES"
 #define AppExe "AmSalesVPN.exe"
 

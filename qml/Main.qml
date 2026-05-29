@@ -831,6 +831,27 @@ Window {
 
                         Rectangle { Layout.fillWidth: true; Layout.topMargin: 16; height: 1; color: Qt.rgba(1,1,1,0.06) }
 
+                        // — Секция Cloudflare-ключа —
+                        Text { text: qsTr("Cloudflare-ключ"); color: win.textHi; font.pixelSize: 13; font.weight: Font.Medium
+                               Layout.topMargin: 16; Layout.bottomMargin: 6 }
+                        Text { Layout.fillWidth: true; wrapMode: Text.WordWrap
+                               text: qsTr("Если провайдер режет прямой VPN — используйте ключ AM.SALES-CF. ") + Cf.statusText
+                               color: win.textLo; font.pixelSize: 11; Layout.bottomMargin: 8 }
+                        Rectangle {
+                            Layout.fillWidth: true; height: 34
+                            color: cfRefM.containsMouse ? Qt.rgba(win.accent.r,win.accent.g,win.accent.b,0.14)
+                                                        : Qt.rgba(win.accent.r,win.accent.g,win.accent.b,0.08)
+                            border.color: Qt.rgba(win.accent.r,win.accent.g,win.accent.b,0.3); border.width: 1
+                            Text { anchors.centerIn: parent
+                                   text: Cf.refreshing ? qsTr("Обновляю…") : qsTr("Обновить Cloudflare-ключ")
+                                   color: win.accent; font.pixelSize: 12; font.weight: Font.Medium }
+                            MouseArea { id: cfRefM; anchors.fill: parent; hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor; enabled: !Cf.refreshing
+                                onClicked: Cf.refresh() }
+                        }
+
+                        Rectangle { Layout.fillWidth: true; Layout.topMargin: 16; height: 1; color: Qt.rgba(1,1,1,0.06) }
+
                         // — Секция Обновления —
                         Text { text: qsTr("Обновления"); color: win.textHi; font.pixelSize: 13; font.weight: Font.Medium
                                Layout.topMargin: 16; Layout.bottomMargin: 6 }

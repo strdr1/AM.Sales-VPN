@@ -63,6 +63,9 @@ public:
 public slots:
     // Добавить одиночный ключ vless://... — распарсить и положить в список.
     void addKey(const QString &vlessUri);
+    // Перечитать список ключей из Store (нужно после внешнего обновления,
+    // напр. CfController обновил CF-ключ).
+    void reloadFromStore();
     // Загрузить подписку (happ://add/<url> или http(s)://...).
     void loadSubscription(const QString &url);
     // Удалить сервер из списка по индексу.
