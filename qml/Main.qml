@@ -46,6 +46,9 @@ Window {
     property bool reallyQuit: false
 
     // ── Иконка в системном трее ─────────────────────────────────────────
+    // У Qt.labs.platform Menu на Windows известный баг (на ПКМ либо не
+    // открывается, либо показывает пустое меню). Поэтому используем
+    // обычное QML Menu из Controls — оно стабильно работает.
     Platform.SystemTrayIcon {
         id: tray
         visible: true
@@ -53,11 +56,52 @@ Window {
         tooltip: win.isOn ? qsTr("AM.SALES VPN — подключено")
                           : qsTr("AM.SALES VPN — отключено")
 
-        // Любой клик по иконке (левый/правый/двойной) — показать окно.
-        // Меню Qt.labs.platform на Windows глючит, поэтому управление —
-        // через окно (кнопки ×/— в шапке).
         onActivated: function(reason) {
-            win.showWindow();
+            // 3 = Platform.SystemTrayIcon.Trigger (ЛКМ)
+            // 2 = Context (ПКМ)
+            // 4 = DoubleClick
+            if (reason === Platform.SystemTrayIcon.Context) {
+                // Показываем меню под курсором. Для популярных Qt-версий
+                // popup() в screen-координатах работает через cursorPos
+                // из QQuickWindow (нет прямого API), поэтому открываем
+                // меню рядом с активным окном — но если окно скрыто, то
+                // в центре экрана. Универсальный путь — Window.show()
+                // и сразу popup в позиции курсора через MouseArea.
+                trayMenu.popup();
+            } else {
+                win.showWindow();
+            }
+        }
+    }
+
+    // ── Меню трея (вызывается из tray.onActivated при ПКМ) ──────────────
+    // popup() без аргументов открывает меню в позиции курсора мыши.
+    Menu {
+        id: trayMenu
+        // Тёмный стиль под наш UI.
+        background: Rectangle {
+            color: "#0E140E"
+            border.color: Qt.rgba(1,1,1,0.10); border.width: 1
+            implicitWidth: 220
+        }
+        MenuItem {
+            text: win.isOn ? qsTr("Отключить VPN") : qsTr("Подключить VPN")
+            onTriggered: {
+                if (win.isOn || win.isBusy) {
+                    Vpn.disconnectVpn(); Zapret.stop();
+                } else {
+                    if (Vpn.useZapret) Zapret.start();
+                    Vpn.connectVpn();
+                }
+            }
+        }
+        MenuSeparator {}
+        MenuItem { text: qsTr("Открыть окно");  onTriggered: win.showWindow() }
+        MenuItem { text: qsTr("Папка логов");   onTriggered: Logs.openLogsFolder() }
+        MenuSeparator {}
+        MenuItem {
+            text: qsTr("Выход")
+            onTriggered: { win.reallyQuit = true; Qt.quit(); }
         }
     }
 
@@ -68,14 +112,13 @@ Window {
         win.requestActivate();
     }
 
-    // При закрытии окна — прячем в трей, а не выходим (если не "Выход").
+    // Системный крестик окна (заголовок Windows) — РЕАЛЬНО закрывает
+    // приложение. Если нужно свернуть в трей — есть кнопка "—" в шапке.
     onClosing: function(close) {
-        if (!win.reallyQuit) {
-            close.accepted = false;
-            win.hide();
-            tray.showMessage(qsTr("AM.SALES VPN"),
-                qsTr("Приложение свёрнуто в трей. Двойной клик — открыть."));
-        }
+        win.reallyQuit = true;
+        // close.accepted = true (по умолчанию) — окно закрывается, и так
+        // как setQuitOnLastWindowClosed(false), Qt.quit() добиваем сами.
+        Qt.quit();
     }
 
     // ── Фон: глубокий градиент + неоновые световые пятна ────────────────
