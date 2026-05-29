@@ -896,21 +896,23 @@ Window {
 
                         // — журнал действий приложения —
                         Rectangle { Layout.fillWidth: true; Layout.topMargin: 14; height: 1; color: Qt.rgba(1,1,1,0.08) }
+                        Text { Layout.fillWidth: true; Layout.topMargin: 8
+                               text: qsTr("Журнал действий")
+                               color: win.textHi; font.pixelSize: 13; font.weight: Font.Medium }
+                        // Ссылки-действия — отдельной строкой, чтобы при узкой
+                        // панели не наезжали на заголовок.
                         RowLayout {
-                            Layout.fillWidth: true; Layout.topMargin: 8
-                            Text { Layout.fillWidth: true; text: qsTr("Журнал действий")
-                                   color: win.textHi; font.pixelSize: 13; font.weight: Font.Medium }
-                            Text { text: qsTr("Экспортировать"); color: win.accent; font.pixelSize: 11
+                            Layout.fillWidth: true; Layout.topMargin: 2; spacing: 14
+                            Text { text: qsTr("Экспорт"); color: win.accent; font.pixelSize: 11
                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                        onClicked: exportLogDialog.open() } }
-                            Text { Layout.leftMargin: 12; text: qsTr("Папка логов")
-                                   color: win.accent; font.pixelSize: 11
+                            Text { text: qsTr("Папка"); color: win.accent; font.pixelSize: 11
                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                        onClicked: Logs.openLogsFolder() } }
-                            Text { Layout.leftMargin: 12; text: qsTr("Копировать")
-                                   color: win.accent; font.pixelSize: 11
+                            Text { text: qsTr("Копировать"); color: win.accent; font.pixelSize: 11
                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                        onClicked: Diag.copyToClipboard() } }
+                            Item { Layout.fillWidth: true }
                         }
                         Text { Layout.fillWidth: true; Layout.topMargin: 2
                                text: qsTr("Пишется автоматически на каждое действие → ") + Logs.currentLogPath

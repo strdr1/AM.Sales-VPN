@@ -4,7 +4,7 @@
 ; ─────────────────────────────────────────────────────────────────────────
 
 #define AppName "AM.SALES VPN"
-#define AppVersion "1.0.1"
+#define AppVersion "1.0.2"
 #define AppPublisher "AM.SALES"
 #define AppExe "AmSalesVPN.exe"
 
@@ -60,10 +60,15 @@ Name: "{autodesktop}\AM.SALES VPN"; Filename: "{app}\{#AppExe}"; IconFilename: "
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AmSalesVPN"; ValueData: """{app}\{#AppExe}"""; Flags: uninsdeletevalue; Tasks: autostart
 
 [Run]
-; Предложить запустить после установки. shellexec + runasoriginaluser —
-; чтобы UAC корректно поднял права (приложению нужен admin-манифест),
-; иначе CreateProcess падает с кодом 740.
+; ── 1. Обычная установка: галка "Запустить" в финальном диалоге. ─────────
+;      Пропускается в /VERYSILENT (skipifsilent), там работает запись ниже.
+; shellexec + runasoriginaluser — чтобы UAC корректно поднял права
+; (приложению нужен admin-манифест), иначе CreateProcess падает с 740.
 Filename: "{app}\{#AppExe}"; Description: "Запустить AM.SALES VPN"; Flags: postinstall skipifsilent shellexec runasoriginaluser nowait
+
+; ── 2. Тихая установка (автообновление из приложения): запуск без галки. ─
+; Срабатывает только при /VERYSILENT — стандартный setup не задваивает.
+Filename: "{app}\{#AppExe}"; Flags: shellexec runasoriginaluser nowait; Check: WizardSilent
 
 [UninstallDelete]
 ; Чистим за собой движок/кэш при удалении

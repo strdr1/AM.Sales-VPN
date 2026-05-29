@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     QApplication::setApplicationName(QStringLiteral("AM.SALES VPN"));
-    QApplication::setApplicationVersion(QStringLiteral("1.0.1"));
+    QApplication::setApplicationVersion(QStringLiteral("1.0.2"));
     QApplication::setOrganizationName(QStringLiteral("AM.SALES"));
     // Не выходим при закрытии окна — приложение живёт в трее.
     QApplication::setQuitOnLastWindowClosed(false);

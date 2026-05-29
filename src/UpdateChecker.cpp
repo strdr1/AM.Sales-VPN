@@ -153,14 +153,12 @@ void UpdateChecker::downloadAndInstall()
             QStringLiteral("/SUPPRESSMSGBOXES"),
             QStringLiteral("/NORESTART"),
         };
-        if (QProcess::startDetached(path, args)) {
-            // Через секунду выходим, чтобы setup мог переписать наш exe
-            // без принудительного TerminateProcess (на случай если флаг
-            // CloseApplications сработает не идеально).
-            QTimer::singleShot(1000, qApp, &QCoreApplication::quit);
-        } else {
+        if (!QProcess::startDetached(path, args)) {
             m_status = QStringLiteral("Не удалось запустить установщик");
             emit statusTextChanged();
         }
+        // Сами не выходим — Inno Setup (CloseApplications=force) корректно
+        // закроет наш процесс и потом сам перезапустит (RestartApplications
+        // в .iss + строка [Run] с Check: WizardSilent на случай /VERYSILENT).
     });
 }
