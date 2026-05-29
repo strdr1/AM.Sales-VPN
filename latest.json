@@ -1,5 +1,5 @@
 {
-  "version": "1.0.11",
+  "version": "1.0.12",
   "url": "https://github.com/strdr1/AM.Sales-VPN/releases/latest/download/AmSalesVPN-Setup.exe",
-  "notes": "v1.0.11: меню трея — создан скрытый owner-window (message-only HWND) и добавлен SetForegroundWindow перед TrackPopupMenu. Без этого нативное меню Windows не показывалось когда главное окно скрыто в трее."
+  "notes": "v1.0.12: новый сервер 78.17.103.241 (2 встроенных ключа AM.SALES-1/2). Keep-alive: соединение не отключается — каждые 15 сек проверяется, при обрыве автоматически переподключается. На сервере systemd Restart=always."
 }

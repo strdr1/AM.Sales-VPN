@@ -144,4 +144,14 @@ private:
 
     QProcess *m_proc = nullptr;     // процесс sing-box
     Store *m_store = nullptr;       // хранилище ключей/настроек
+
+    // ── Keep-alive: соединение «никогда» не отключается ─────────────────
+    // Каждые 15 сек: жив ли sing-box? есть ли реальная связь? Если нет —
+    // переподключаемся (m_userWantsConnected). Считаем неудачи подряд,
+    // чтоб не дёргаться от одной флуктуации сети.
+    QTimer *m_keepAliveTimer = nullptr;
+    bool m_userWantsConnected = false;   // пользователь нажал «Включить»
+    int  m_consecFailures = 0;
+    void keepAliveTick();
+    void reconnectInternal();             // тихий пере-старт sing-box
 };

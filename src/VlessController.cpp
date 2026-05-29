@@ -35,6 +35,11 @@
 VlessController::VlessController(Store *store, QObject *parent)
     : QObject(parent), m_store(store)
 {
+    // Keep-alive: каждые 15 сек проверяем что туннель жив и проходит трафик.
+    m_keepAliveTimer = new QTimer(this);
+    m_keepAliveTimer->setInterval(15000);
+    connect(m_keepAliveTimer, &QTimer::timeout, this, &VlessController::keepAliveTick);
+
     if (m_store) {
         // Восстанавливаем настройку маршрутизации.
         m_routeRuDirect = m_store->setting(
@@ -47,7 +52,26 @@ VlessController::VlessController(Store *store, QObject *parent)
         // Использовать ли zapret (по умолчанию да).
         m_useZapret = m_store->setting(QStringLiteral("useZapret"), true).toBool();
         // Загружаем сохранённые ключи.
-        const QStringList saved = m_store->keys();
+        QStringList saved = m_store->keys();
+
+        // Первый запуск (ключей нет) — добавим два встроенных ключа
+        // нашего сервера AM.SALES, чтобы пользователь не вводил их руками.
+        if (saved.isEmpty()) {
+            const QStringList defaults = {
+                QStringLiteral("vless://74553d23-3ff1-4e25-b06f-ff24e22f97ba@78.17.103.241:443"
+                               "?type=tcp&security=reality&sni=ya.ru&fp=firefox"
+                               "&pbk=TiUgA_8KxozBVo35PWZczwodV5aDoypTbQDRyEuwpSU"
+                               "&sid=23f62cc284c8fbb4#AM.SALES-1"),
+                QStringLiteral("vless://048f5a49-476b-4b72-8f3c-034103caf7bc@78.17.103.241:443"
+                               "?type=tcp&security=reality&sni=ya.ru&fp=firefox"
+                               "&pbk=TiUgA_8KxozBVo35PWZczwodV5aDoypTbQDRyEuwpSU"
+                               "&sid=23f62cc284c8fbb4#AM.SALES-2"),
+            };
+            for (const QString &uri : defaults)
+                m_store->addKey(uri);
+            saved = defaults;
+        }
+
         for (const QString &uri : saved) {
             const Server s = parseVless(uri);
             if (s.valid)
@@ -569,6 +593,10 @@ void VlessController::connectVpn()
         emit errorOccurred(QStringLiteral("Сначала добавьте ключ или подписку"));
         return;
     }
+    // Пользователь нажал «Включить» — теперь keep-alive обязан держать
+    // соединение, пока пользователь сам не нажмёт «Выключить».
+    m_userWantsConnected = true;
+    m_consecFailures = 0;
     // Проверка прав администратора. Без неё sing-box падает с
     // "configure tun interface: Access is denied" — а в UI это выглядит
     // как "не запустился (проверьте ключ)", что путает пользователя.
@@ -664,6 +692,11 @@ void VlessController::connectVpn()
         if (online) {
             setConnected(true);
             setStatus(QStringLiteral("Подключено · %1").arg(s.name));
+            m_consecFailures = 0;
+            // С этого момента keep-alive дёргается каждые 15 сек —
+            // при обрыве сам поднимет sing-box обратно.
+            if (m_userWantsConnected && !m_keepAliveTimer->isActive())
+                m_keepAliveTimer->start();
         } else {
             // Туннель поднялся, но связи нет — откатываемся, спасаем инет.
             disconnectVpn();
@@ -677,6 +710,12 @@ void VlessController::connectVpn()
 
 void VlessController::disconnectVpn()
 {
+    // Пользователь сам нажал «Выключить» — гасим keep-alive, чтобы он
+    // не вернул нас обратно через 15 сек.
+    m_userWantsConnected = false;
+    if (m_keepAliveTimer && m_keepAliveTimer->isActive())
+        m_keepAliveTimer->stop();
+
     // Приложение уже от админа — глушим напрямую.
     QProcess::startDetached(QStringLiteral("taskkill"),
         {QStringLiteral("/F"), QStringLiteral("/IM"),
@@ -684,6 +723,76 @@ void VlessController::disconnectVpn()
     setConnected(false);
     setConnecting(false);
     setStatus(QStringLiteral("Не подключено"));
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  Keep-alive: каждые 15 сек проверяем что туннель работает.
+//
+//  Что считаем «жив»:
+//    1) процесс sing-box.exe запущен;
+//    2) короткий TCP-коннект до 1.1.1.1:443 проходит за < 4 сек.
+//
+//  Что делаем при неудаче:
+//    – 1 раз: ничего (флуктуация сети — Wi-Fi моргнул).
+//    – 2 раза подряд: тихо рестартуем sing-box (reconnectInternal).
+//
+//  m_userWantsConnected = false → keep-alive не работает (юзер сам выключил).
+// ─────────────────────────────────────────────────────────────────────────
+void VlessController::keepAliveTick()
+{
+    if (!m_userWantsConnected)
+        return;
+
+    // 1) процесс
+    QProcess chk;
+    chk.start(QStringLiteral("tasklist"),
+              {QStringLiteral("/FI"), QStringLiteral("IMAGENAME eq sing-box.exe"),
+               QStringLiteral("/NH")});
+    chk.waitForFinished(2000);
+    const bool procUp = QString::fromLocal8Bit(chk.readAllStandardOutput())
+                        .contains(QStringLiteral("sing-box.exe"), Qt::CaseInsensitive);
+
+    // 2) реальный выход — короткий TCP-зонд к 1.1.1.1:443
+    bool netOk = false;
+    if (procUp) {
+        QTcpSocket probe;
+        probe.connectToHost(QStringLiteral("1.1.1.1"), 443);
+        netOk = probe.waitForConnected(4000);
+        probe.abort();
+    }
+
+    if (procUp && netOk) {
+        m_consecFailures = 0;
+        return;
+    }
+
+    ++m_consecFailures;
+    if (m_consecFailures < 2) {
+        // Дадим сети шанс — одна неудача может быть флуктуацией.
+        return;
+    }
+    m_consecFailures = 0;
+    reconnectInternal();
+}
+
+// Тихий рестарт: не показываем «Подключение…» в статусе, просто
+// перезапускаем sing-box на том же сервере.
+void VlessController::reconnectInternal()
+{
+    setStatus(QStringLiteral("Восстанавливаю соединение…"));
+    emit errorOccurred(QStringLiteral("Связь пропала — переподключаюсь"));
+
+    // Аккуратно прибиваем старый процесс (может быть зомби)
+    QProcess kill;
+    kill.start(QStringLiteral("taskkill"),
+               {QStringLiteral("/F"), QStringLiteral("/IM"),
+                QStringLiteral("sing-box.exe")});
+    kill.waitForFinished(2000);
+
+    setConnected(false);
+    // Снимем флаг, чтобы connectVpn не выпал на guard'е m_connected.
+    // m_userWantsConnected оставляем = true.
+    connectVpn();
 }
 
 void VlessController::toggle()
