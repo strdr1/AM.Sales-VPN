@@ -4,7 +4,7 @@
 ; ─────────────────────────────────────────────────────────────────────────
 
 #define AppName "AM.SALES VPN"
-#define AppVersion "1.0.2"
+#define AppVersion "1.0.3"
 #define AppPublisher "AM.SALES"
 #define AppExe "AmSalesVPN.exe"
 
@@ -68,7 +68,11 @@ Filename: "{app}\{#AppExe}"; Description: "Запустить AM.SALES VPN"; Fla
 
 ; ── 2. Тихая установка (автообновление из приложения): запуск без галки. ─
 ; Срабатывает только при /VERYSILENT — стандартный setup не задваивает.
-Filename: "{app}\{#AppExe}"; Flags: shellexec runasoriginaluser nowait; Check: WizardSilent
+; ВАЖНО: НЕ используем runasoriginaluser — иначе exe запустится без elevation
+; и манифест requireAdministrator не активируется (без админ-прав sing-box
+; не может создать TUN-интерфейс: "configure tun interface: Access is denied").
+; runascurrentuser = унаследует админ-токен setup'а.
+Filename: "{app}\{#AppExe}"; Flags: nowait runascurrentuser; Check: WizardSilent
 
 [UninstallDelete]
 ; Чистим за собой движок/кэш при удалении

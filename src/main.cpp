@@ -24,6 +24,7 @@
 #include "DiagController.h"
 #include "UpdateChecker.h"
 #include "LogController.h"
+#include "AdminCheck.h"
 
 int main(int argc, char *argv[])
 {
@@ -32,7 +33,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     QApplication::setApplicationName(QStringLiteral("AM.SALES VPN"));
-    QApplication::setApplicationVersion(QStringLiteral("1.0.2"));
+    QApplication::setApplicationVersion(QStringLiteral("1.0.3"));
     QApplication::setOrganizationName(QStringLiteral("AM.SALES"));
     // Не выходим при закрытии окна — приложение живёт в трее.
     QApplication::setQuitOnLastWindowClosed(false);
@@ -58,6 +59,14 @@ int main(int argc, char *argv[])
 
     // ── Создаём объекты бэкенда ─────────────────────────────────────────
     LogController logs;                 // единый журнал действий → файл
+    // Сразу пишем в журнал, запущены ли с правами админа — это самая частая
+    // причина "VPN не подключается": без админа sing-box не создаёт TUN.
+    logs.log(QStringLiteral("APP"),
+             AdminCheck::isElevated() ? QStringLiteral("OK") : QStringLiteral("WARN"),
+             AdminCheck::isElevated()
+                 ? QStringLiteral("Running as administrator")
+                 : QStringLiteral("NOT running as administrator — VPN will fail"
+                                  " (sing-box cannot create TUN). Re-run with admin."));
     Store store;                       // JSON-хранилище (ключи, настройки, стата)
     ZapretController zapret;
     NetworkScanner scanner;

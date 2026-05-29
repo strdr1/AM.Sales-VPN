@@ -1,4 +1,5 @@
 #include "ZapretController.h"
+#include "AdminCheck.h"
 
 #include <QProcess>
 #include <QFileInfo>
@@ -141,6 +142,13 @@ void ZapretController::start()
 {
     if (m_searching || m_running)
         return;
+
+    // winws и WinDivert требуют админ-прав. Если их нет — сразу понятная
+    // ошибка в статус, а не "процесс упал" через 3 секунды.
+    if (!AdminCheck::isElevated()) {
+        setStatus(QStringLiteral("Нет прав администратора (zapret не запустится)"));
+        return;
+    }
 
     setSearching(true);
 

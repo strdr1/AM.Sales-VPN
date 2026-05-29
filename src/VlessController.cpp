@@ -1,5 +1,6 @@
 #include "VlessController.h"
 #include "Store.h"
+#include "AdminCheck.h"
 
 #include <QProcess>
 #include <QCoreApplication>
@@ -562,6 +563,18 @@ void VlessController::connectVpn()
         return;
     if (m_serversData.isEmpty()) {
         emit errorOccurred(QStringLiteral("Сначала добавьте ключ или подписку"));
+        return;
+    }
+    // Проверка прав администратора. Без неё sing-box падает с
+    // "configure tun interface: Access is denied" — а в UI это выглядит
+    // как "не запустился (проверьте ключ)", что путает пользователя.
+    if (!AdminCheck::isElevated()) {
+        const QString msg = QStringLiteral(
+            "Нет прав администратора — VPN не запустится. "
+            "Закройте приложение и запустите от имени администратора "
+            "(правой кнопкой по ярлыку → «Запуск от имени администратора»).");
+        setStatus(msg);
+        emit errorOccurred(msg);
         return;
     }
     if (m_currentServer < 0 || m_currentServer >= m_serversData.size())
