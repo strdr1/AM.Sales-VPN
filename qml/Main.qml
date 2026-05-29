@@ -67,45 +67,59 @@ Window {
                 win.showWindow();
                 return;
             }
-            if (reason === Platform.SystemTrayIcon.Context) {
-                trayMenu.popup();   // штатный путь, если Qt всё-таки дал Context
-                return;
-            }
-            // Trigger / неизвестный — на Win11+elevated ПКМ часто приходит
-            // как Trigger. Решаем эвристикой: если кликнули ПКМ, открываем
-            // меню; если ЛКМ — окно. Состояние кнопок мыши узнаём через
-            // CursorHelper (см. файл src/CursorHelper.h, регистрируется
-            // в main.cpp как контекстное свойство `Cursor`).
-            if (Cursor.rightPressed) {
-                trayMenu.popup();
+            // Снимаем позицию курсора СЕЙЧАС (потом он может уехать).
+            const p = Cursor.pos;
+            if (reason === Platform.SystemTrayIcon.Context
+             || Cursor.rightPressed) {
+                trayMenu.popupAt(p.x, p.y);
             } else {
                 win.showWindow();
             }
         }
     }
 
-    // ── Меню трея (QML) — открываем сами в позиции курсора ──────────────
+    // ── Меню трея (QML, полностью кастомное) ────────────────────────────
+    // popupAt(x,y) — открывает у точки в экранных координатах.
     Menu {
         id: trayMenu
+        modal: true
+        // Без parent — координаты x,y интерпретируются как глобальные (экран).
+        // Фиксированная ширина — чтобы выглядело аккуратно.
+        implicitWidth: 220
+        padding: 6
         background: Rectangle {
             color: "#0E140E"
-            border.color: Qt.rgba(1,1,1,0.10); border.width: 1
+            border.color: Qt.rgba(1,1,1,0.14); border.width: 1
+        }
+        function popupAt(px, py) {
+            // Открываем выше курсора (трей внизу экрана) и чуть левее,
+            // чтобы меню не свешивалось за правый край.
+            const w = trayMenu.implicitWidth;
+            const h = trayMenu.contentItem.implicitHeight + 12;
+            trayMenu.x = Math.max(0, px - w + 10);
+            trayMenu.y = py - h - 4;
+            trayMenu.open();
+        }
+        // Делегат пункта — наш стиль, чтобы текст был ВИДИМЫЙ (без него
+        // Controls.Basic рисует тёмно-серый текст на тёмном фоне и кажется
+        // disabled).
+        delegate: MenuItem {
+            id: mi
             implicitWidth: 220
+            implicitHeight: 32
+            background: Rectangle {
+                color: mi.highlighted ? Qt.rgba(win.accent.r, win.accent.g, win.accent.b, 0.18)
+                                      : "transparent"
+            }
+            contentItem: Text {
+                text: mi.text
+                color: mi.highlighted ? win.accent : win.textHi
+                font.pixelSize: 13
+                verticalAlignment: Text.AlignVCenter
+                leftPadding: 12; rightPadding: 12
+            }
         }
-        // popup(null, ...) — точка в screen-координатах, без parent.
-        function popup() {
-            const p = Cursor.pos;
-            open();           // сначала открываем
-            // затем перемещаем popup-окно в нужную точку. Window у Menu
-            // создаётся лениво, поэтому даём ему кадр.
-            Qt.callLater(function() {
-                if (trayMenu.window) {
-                    trayMenu.window.x = p.x;
-                    // выше курсора, чтобы открывалось вверх от иконки
-                    trayMenu.window.y = p.y - trayMenu.height;
-                }
-            });
-        }
+
         MenuItem {
             text: win.isOn ? qsTr("Отключить VPN") : qsTr("Подключить VPN")
             onTriggered: {
