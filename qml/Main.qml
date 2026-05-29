@@ -894,34 +894,66 @@ Window {
                                text: qsTr("Нажмите «Запустить» — приложение проверит, что мешает подключению.")
                                color: win.textLo; font.pixelSize: 12; wrapMode: Text.WordWrap }
 
-                        // — логи —
+                        // — журнал действий приложения —
                         Rectangle { Layout.fillWidth: true; Layout.topMargin: 14; height: 1; color: Qt.rgba(1,1,1,0.08) }
                         RowLayout {
                             Layout.fillWidth: true; Layout.topMargin: 8
-                            Text { Layout.fillWidth: true; text: qsTr("Логи движков")
+                            Text { Layout.fillWidth: true; text: qsTr("Журнал действий")
                                    color: win.textHi; font.pixelSize: 13; font.weight: Font.Medium }
-                            Text { text: qsTr("Обновить"); color: win.accent; font.pixelSize: 11
-                                   MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Diag.refreshLogs() } }
+                            Text { text: qsTr("Экспортировать"); color: win.accent; font.pixelSize: 11
+                                   MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                       onClicked: exportLogDialog.open() } }
+                            Text { Layout.leftMargin: 12; text: qsTr("Папка логов")
+                                   color: win.accent; font.pixelSize: 11
+                                   MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                       onClicked: Logs.openLogsFolder() } }
                             Text { Layout.leftMargin: 12; text: qsTr("Копировать")
                                    color: win.accent; font.pixelSize: 11
-                                   MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Diag.copyToClipboard() } }
+                                   MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                       onClicked: Diag.copyToClipboard() } }
                         }
+                        Text { Layout.fillWidth: true; Layout.topMargin: 2
+                               text: qsTr("Пишется автоматически на каждое действие → ") + Logs.currentLogPath
+                               color: win.textLo; font.pixelSize: 10; wrapMode: Text.Wrap; elide: Text.ElideMiddle }
                         Rectangle {
                             Layout.fillWidth: true; Layout.fillHeight: true; Layout.topMargin: 6
-                            Layout.minimumHeight: 140
+                            Layout.minimumHeight: 160
                             color: Qt.rgba(0,0,0,0.35); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
                             Flickable {
+                                id: logFlick
                                 anchors.fill: parent; anchors.margins: 8
                                 contentWidth: width; contentHeight: logText.implicitHeight
                                 clip: true
+                                // авто-скролл вниз при появлении новых строк
+                                onContentHeightChanged: contentY = Math.max(0, contentHeight - height)
                                 TextEdit {
                                     id: logText; width: parent.width
-                                    text: Diag.logs.length > 0 ? Diag.logs : qsTr("Логов пока нет. Запустите VPN — здесь появятся подробности.")
-                                    color: Diag.logs.length > 0 ? win.textLo : Qt.rgba(0.5,0.56,0.45,0.6)
+                                    text: Logs.tail.length > 0 ? Logs.tail
+                                                               : qsTr("Логи появятся после первого действия.")
+                                    color: Logs.tail.length > 0 ? win.textLo : Qt.rgba(0.5,0.56,0.45,0.6)
                                     font.family: "Consolas"; font.pixelSize: 10
                                     readOnly: true; selectByMouse: true; wrapMode: TextEdit.Wrap
                                 }
                             }
+                        }
+                    }
+
+                    // ── Диалог сохранения лога ──
+                    Platform.FileDialog {
+                        id: exportLogDialog
+                        title: qsTr("Сохранить лог")
+                        fileMode: Platform.FileDialog.SaveFile
+                        nameFilters: [ qsTr("Текстовый файл (*.txt)") ]
+                        defaultSuffix: "txt"
+                        currentFile: "file:///" + (Qt.platform.os === "windows"
+                            ? (Qt.application.arguments.length > 0 ? "" : "") + "AmSalesVPN-log.txt"
+                            : "AmSalesVPN-log.txt")
+                        onAccepted: Logs.exportTo(file.toString())
+                    }
+                    Connections {
+                        target: Logs
+                        function onExported(ok, path) {
+                            // тихо: статус в журнале уже записан. Можно добавить toast в будущем.
                         }
                     }
 

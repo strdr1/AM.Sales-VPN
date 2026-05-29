@@ -37,6 +37,8 @@ qt_add_executable(AmSalesVPN
     src/DiagController.cpp
     src/UpdateChecker.h
     src/UpdateChecker.cpp
+    src/LogController.h
+    src/LogController.cpp
 )
 
 # ── Подключаем QML-модуль (наш интерфейс) ───────────────────────────────

@@ -23,6 +23,7 @@
 #include "TgController.h"
 #include "DiagController.h"
 #include "UpdateChecker.h"
+#include "LogController.h"
 
 int main(int argc, char *argv[])
 {
@@ -31,6 +32,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     QApplication::setApplicationName(QStringLiteral("AM.SALES VPN"));
+    QApplication::setApplicationVersion(QStringLiteral("1.0.1"));
     QApplication::setOrganizationName(QStringLiteral("AM.SALES"));
     // Не выходим при закрытии окна — приложение живёт в трее.
     QApplication::setQuitOnLastWindowClosed(false);
@@ -55,6 +57,7 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
 
     // ── Создаём объекты бэкенда ─────────────────────────────────────────
+    LogController logs;                 // единый журнал действий → файл
     Store store;                       // JSON-хранилище (ключи, настройки, стата)
     ZapretController zapret;
     NetworkScanner scanner;
@@ -63,6 +66,37 @@ int main(int argc, char *argv[])
     TgController tg(&store);            // встроенный Telegram-прокси
     DiagController diag;                // диагностика «почему не работает»
     UpdateChecker updater(&store);      // проверка обновлений (с хранилищем)
+
+    // ── Логируем ключевые события каждого контроллера в LogController ───
+    // Подписываемся на сигналы — никаких знаний о LogController в самих
+    // контроллерах не нужно, всё связывается здесь.
+    QObject::connect(&vless, &VlessController::connectedChanged, &logs, [&]() {
+        logs.log(QStringLiteral("VPN"), vless.connected() ? QStringLiteral("OK") : QStringLiteral("INFO"),
+                 vless.connected() ? QStringLiteral("Connected") : QStringLiteral("Disconnected"));
+    });
+    QObject::connect(&zapret, &ZapretController::runningChanged, &logs, [&]() {
+        logs.log(QStringLiteral("ZAPRET"), zapret.running() ? QStringLiteral("OK") : QStringLiteral("INFO"),
+                 zapret.running()
+                     ? QStringLiteral("Started (profile: ") + zapret.selectedProfile() + QStringLiteral(")")
+                     : QStringLiteral("Stopped"));
+    });
+    QObject::connect(&tg, &TgController::runningChanged, &logs, [&]() {
+        logs.log(QStringLiteral("TG"), tg.running() ? QStringLiteral("OK") : QStringLiteral("INFO"),
+                 tg.running() ? QStringLiteral("Telegram proxy started")
+                              : QStringLiteral("Telegram proxy stopped"));
+    });
+    QObject::connect(&updater, &UpdateChecker::statusTextChanged, &logs, [&]() {
+        logs.log(QStringLiteral("UPDATE"), QStringLiteral("INFO"), updater.statusText());
+    });
+    QObject::connect(&scanner, &NetworkScanner::scanningChanged, &logs, [&]() {
+        logs.log(QStringLiteral("SCAN"), QStringLiteral("INFO"),
+                 scanner.scanning() ? QStringLiteral("Network scan started")
+                                    : QStringLiteral("Network scan finished"));
+    });
+    QObject::connect(&vless, &VlessController::errorOccurred, &logs,
+                     [&](const QString &msg) {
+        logs.log(QStringLiteral("VPN"), QStringLiteral("ERROR"), msg);
+    });
 
     // Связываем VPN-подключение со счётчиком статистики: при подключении
     // стартуем сессию, при отключении — завершаем (она пишется в Store).
@@ -83,6 +117,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("Tg"), &tg);
     engine.rootContext()->setContextProperty(QStringLiteral("Diag"), &diag);
     engine.rootContext()->setContextProperty(QStringLiteral("Updater"), &updater);
+    engine.rootContext()->setContextProperty(QStringLiteral("Logs"), &logs);
 
     // ── Загружаем главный интерфейс ─────────────────────────────────────
     // Если QML не загрузится (ошибка синтаксиса) — приложение закроется.
