@@ -1,5 +1,5 @@
 {
-  "version": "1.0.6",
+  "version": "1.0.7",
   "url": "https://github.com/strdr1/AM.Sales-VPN/releases/latest/download/AmSalesVPN-Setup.exe",
-  "notes": "v1.0.6: меню трея теперь нативное Windows — открывается у иконки в трее, а не внутри окна; пункты активны."
+  "notes": "v1.0.7: фикс ПКМ по иконке в трее — обходим баг Win11+elevated (Qt отдавал все клики как Trigger). Меню теперь открывается всегда, у самого курсора."
 }

@@ -25,6 +25,7 @@
 #include "UpdateChecker.h"
 #include "LogController.h"
 #include "AdminCheck.h"
+#include "CursorHelper.h"
 
 int main(int argc, char *argv[])
 {
@@ -33,7 +34,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     QApplication::setApplicationName(QStringLiteral("AM.SALES VPN"));
-    QApplication::setApplicationVersion(QStringLiteral("1.0.6"));
+    QApplication::setApplicationVersion(QStringLiteral("1.0.7"));
     QApplication::setOrganizationName(QStringLiteral("AM.SALES"));
     // Не выходим при закрытии окна — приложение живёт в трее.
     QApplication::setQuitOnLastWindowClosed(false);
@@ -75,6 +76,7 @@ int main(int argc, char *argv[])
     TgController tg(&store);            // встроенный Telegram-прокси
     DiagController diag;                // диагностика «почему не работает»
     UpdateChecker updater(&store);      // проверка обновлений (с хранилищем)
+    CursorHelper cursor;                // глобальные позиция/кнопки мыши
 
     // ── Логируем ключевые события каждого контроллера в LogController ───
     // Подписываемся на сигналы — никаких знаний о LogController в самих
@@ -127,6 +129,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("Diag"), &diag);
     engine.rootContext()->setContextProperty(QStringLiteral("Updater"), &updater);
     engine.rootContext()->setContextProperty(QStringLiteral("Logs"), &logs);
+    engine.rootContext()->setContextProperty(QStringLiteral("Cursor"), &cursor);
 
     // ── Загружаем главный интерфейс ─────────────────────────────────────
     // Если QML не загрузится (ошибка синтаксиса) — приложение закроется.

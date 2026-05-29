@@ -46,49 +46,78 @@ Window {
     property bool reallyQuit: false
 
     // ── Иконка в системном трее ─────────────────────────────────────────
-    // Меню привязываем к свойству `menu` — Qt сам показывает его на ПКМ
-    // через нативный WinAPI (TrackPopupMenu). Это надёжнее, чем ловить
-    // reason==Context в onActivated и звать popup() (Qt 6.8 на Windows
-    // не всегда эмитит Context, и popup() без явных координат может
-    // открыться "за экраном" из-за того что окно скрыто в трее).
+    // На Windows + elevated-процесс Qt 6.8 у Qt.labs.platform.SystemTrayIcon
+    // глючит автоматическое открытие menu: ОС присылает Click/Trigger
+    // вместо Context (UIPI режет часть оконных сообщений к elevated-окну).
+    // Поэтому открываем меню САМИ на любой клик: ЛКМ показывает окно, ПКМ
+    // (или любой другой) — открывает меню через popup(null, screenPos),
+    // где screenPos берём из глобальной позиции курсора (QCursor через
+    // вспомогательный хелпер ниже).
     Platform.SystemTrayIcon {
         id: tray
         visible: true
         icon.source: "qrc:/qt/qml/AmSalesVPN/assets/tray.png"
         tooltip: win.isOn ? qsTr("AM.SALES VPN — подключено")
                           : qsTr("AM.SALES VPN — отключено")
-        menu: trayMenu
 
         onActivated: function(reason) {
-            // Полезно для диагностики — в логе видно какой клик пришёл.
+            // В лог — какой reason пришёл (Trigger=1, Context=2, DblClk=3).
             Logs.log("TRAY", "DBG", "activated reason=" + reason);
-            // ЛКМ или двойной клик — открыть окно. ПКМ обрабатывает menu.
-            if (reason === Platform.SystemTrayIcon.Trigger
-             || reason === Platform.SystemTrayIcon.DoubleClick) {
+            if (reason === Platform.SystemTrayIcon.DoubleClick) {
+                win.showWindow();
+                return;
+            }
+            if (reason === Platform.SystemTrayIcon.Context) {
+                trayMenu.popup();   // штатный путь, если Qt всё-таки дал Context
+                return;
+            }
+            // Trigger / неизвестный — на Win11+elevated ПКМ часто приходит
+            // как Trigger. Решаем эвристикой: если кликнули ПКМ, открываем
+            // меню; если ЛКМ — окно. Состояние кнопок мыши узнаём через
+            // CursorHelper (см. файл src/CursorHelper.h, регистрируется
+            // в main.cpp как контекстное свойство `Cursor`).
+            if (Cursor.rightPressed) {
+                trayMenu.popup();
+            } else {
                 win.showWindow();
             }
         }
     }
 
-    // ── Нативное меню трея (TrackPopupMenu / NSMenu) ────────────────────
-    Platform.Menu {
+    // ── Меню трея (QML) — открываем сами в позиции курсора ──────────────
+    Menu {
         id: trayMenu
-        Platform.MenuItem {
+        background: Rectangle {
+            color: "#0E140E"
+            border.color: Qt.rgba(1,1,1,0.10); border.width: 1
+            implicitWidth: 220
+        }
+        // popup(null, ...) — точка в screen-координатах, без parent.
+        function popup() {
+            const p = Cursor.pos;
+            open();           // сначала открываем
+            // затем перемещаем popup-окно в нужную точку. Window у Menu
+            // создаётся лениво, поэтому даём ему кадр.
+            Qt.callLater(function() {
+                if (trayMenu.window) {
+                    trayMenu.window.x = p.x;
+                    // выше курсора, чтобы открывалось вверх от иконки
+                    trayMenu.window.y = p.y - trayMenu.height;
+                }
+            });
+        }
+        MenuItem {
             text: win.isOn ? qsTr("Отключить VPN") : qsTr("Подключить VPN")
             onTriggered: {
-                if (win.isOn || win.isBusy) {
-                    Vpn.disconnectVpn(); Zapret.stop();
-                } else {
-                    if (Vpn.useZapret) Zapret.start();
-                    Vpn.connectVpn();
-                }
+                if (win.isOn || win.isBusy) { Vpn.disconnectVpn(); Zapret.stop(); }
+                else { if (Vpn.useZapret) Zapret.start(); Vpn.connectVpn(); }
             }
         }
-        Platform.MenuSeparator {}
-        Platform.MenuItem { text: qsTr("Открыть окно");  onTriggered: win.showWindow() }
-        Platform.MenuItem { text: qsTr("Папка логов");   onTriggered: Logs.openLogsFolder() }
-        Platform.MenuSeparator {}
-        Platform.MenuItem {
+        MenuSeparator {}
+        MenuItem { text: qsTr("Открыть окно");  onTriggered: win.showWindow() }
+        MenuItem { text: qsTr("Папка логов");   onTriggered: Logs.openLogsFolder() }
+        MenuSeparator {}
+        MenuItem {
             text: qsTr("Выход")
             onTriggered: { win.reallyQuit = true; Qt.quit(); }
         }
