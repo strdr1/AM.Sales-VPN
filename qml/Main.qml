@@ -46,45 +46,34 @@ Window {
     property bool reallyQuit: false
 
     // ── Иконка в системном трее ─────────────────────────────────────────
-    // У Qt.labs.platform Menu на Windows известный баг (на ПКМ либо не
-    // открывается, либо показывает пустое меню). Поэтому используем
-    // обычное QML Menu из Controls — оно стабильно работает.
+    // Меню привязываем к свойству `menu` — Qt сам показывает его на ПКМ
+    // через нативный WinAPI (TrackPopupMenu). Это надёжнее, чем ловить
+    // reason==Context в onActivated и звать popup() (Qt 6.8 на Windows
+    // не всегда эмитит Context, и popup() без явных координат может
+    // открыться "за экраном" из-за того что окно скрыто в трее).
     Platform.SystemTrayIcon {
         id: tray
         visible: true
         icon.source: "qrc:/qt/qml/AmSalesVPN/assets/tray.png"
         tooltip: win.isOn ? qsTr("AM.SALES VPN — подключено")
                           : qsTr("AM.SALES VPN — отключено")
+        menu: trayMenu
 
         onActivated: function(reason) {
-            // 3 = Platform.SystemTrayIcon.Trigger (ЛКМ)
-            // 2 = Context (ПКМ)
-            // 4 = DoubleClick
-            if (reason === Platform.SystemTrayIcon.Context) {
-                // Показываем меню под курсором. Для популярных Qt-версий
-                // popup() в screen-координатах работает через cursorPos
-                // из QQuickWindow (нет прямого API), поэтому открываем
-                // меню рядом с активным окном — но если окно скрыто, то
-                // в центре экрана. Универсальный путь — Window.show()
-                // и сразу popup в позиции курсора через MouseArea.
-                trayMenu.popup();
-            } else {
+            // Полезно для диагностики — в логе видно какой клик пришёл.
+            Logs.log("TRAY", "DBG", "activated reason=" + reason);
+            // ЛКМ или двойной клик — открыть окно. ПКМ обрабатывает menu.
+            if (reason === Platform.SystemTrayIcon.Trigger
+             || reason === Platform.SystemTrayIcon.DoubleClick) {
                 win.showWindow();
             }
         }
     }
 
-    // ── Меню трея (вызывается из tray.onActivated при ПКМ) ──────────────
-    // popup() без аргументов открывает меню в позиции курсора мыши.
-    Menu {
+    // ── Нативное меню трея (TrackPopupMenu / NSMenu) ────────────────────
+    Platform.Menu {
         id: trayMenu
-        // Тёмный стиль под наш UI.
-        background: Rectangle {
-            color: "#0E140E"
-            border.color: Qt.rgba(1,1,1,0.10); border.width: 1
-            implicitWidth: 220
-        }
-        MenuItem {
+        Platform.MenuItem {
             text: win.isOn ? qsTr("Отключить VPN") : qsTr("Подключить VPN")
             onTriggered: {
                 if (win.isOn || win.isBusy) {
@@ -95,11 +84,11 @@ Window {
                 }
             }
         }
-        MenuSeparator {}
-        MenuItem { text: qsTr("Открыть окно");  onTriggered: win.showWindow() }
-        MenuItem { text: qsTr("Папка логов");   onTriggered: Logs.openLogsFolder() }
-        MenuSeparator {}
-        MenuItem {
+        Platform.MenuSeparator {}
+        Platform.MenuItem { text: qsTr("Открыть окно");  onTriggered: win.showWindow() }
+        Platform.MenuItem { text: qsTr("Папка логов");   onTriggered: Logs.openLogsFolder() }
+        Platform.MenuSeparator {}
+        Platform.MenuItem {
             text: qsTr("Выход")
             onTriggered: { win.reallyQuit = true; Qt.quit(); }
         }
