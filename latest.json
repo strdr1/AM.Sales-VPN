@@ -1,5 +1,5 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "url": "https://github.com/strdr1/AM.Sales-VPN/releases/latest/download/AmSalesVPN-Setup.exe",
-  "notes": "v1.0.3: проверка прав администратора при включении VPN/zapret + чёткая ошибка в журнале; после автообновления приложение запускается с админ-токеном (фикс UAC)."
+  "notes": "v1.0.4: ИСПРАВЛЕН главный баг — VPN не подключался из-за пробела в пути установки (sing-box получал «-c C:\\Program» вместо полного пути). Запуск sing-box переведён с PowerShell на прямой QProcess."
 }

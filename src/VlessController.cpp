@@ -2,6 +2,10 @@
 #include "Store.h"
 #include "AdminCheck.h"
 
+#ifdef Q_OS_WIN
+#  include <windows.h>  // CREATE_NO_WINDOW для скрытия консоли sing-box
+#endif
+
 #include <QProcess>
 #include <QCoreApplication>
 #include <QFile>
@@ -596,28 +600,37 @@ void VlessController::connectVpn()
     f.close();
 
     // sing-box в TUN-режиме требует администратора. Приложение уже от админа.
-    // ВАЖНО: пишем stdout/stderr sing-box в файл sing-box.log — это нужно для
-    // диагностики (вкладка «Диагностика» читает этот файл).
-    const QString sb = singBoxPath();
+    // ВАЖНО: пишем stdout/stderr sing-box в sing-box.log / sing-box.err —
+    // диагностика читает их.
+    const QString sb      = singBoxPath();
     const QString cfgPath = configPath();
     const QString workDir = engineDir() + QStringLiteral("/vpn");
     const QString logPath = workDir + QStringLiteral("/sing-box.log");
+    const QString errLog  = workDir + QStringLiteral("/sing-box.err");
 
-    // PowerShell Start-Process с редиректами в файл (потоковая запись лога).
-    // -RedirectStandardOutput / -RedirectStandardError создаст файлы и не
-    // блокирует. ВАЖНО: оба файла должны различаться, иначе PS ругается.
-    const QString errLog = workDir + QStringLiteral("/sing-box.err");
-    const QString ps = QStringLiteral(
-        "Start-Process -FilePath '%1' "
-        "-ArgumentList 'run','-c','%2' "
-        "-WorkingDirectory '%3' -WindowStyle Hidden "
-        "-RedirectStandardOutput '%4' -RedirectStandardError '%5'")
-        .arg(sb, cfgPath, workDir, logPath, errLog);
-
-    QProcess::startDetached(QStringLiteral("powershell"),
-        {QStringLiteral("-NoProfile"),
-         QStringLiteral("-WindowStyle"), QStringLiteral("Hidden"),
-         QStringLiteral("-Command"), ps});
+    // Запускаем напрямую через QProcess — он сам корректно квотит аргументы
+    // с пробелами (а в "Program Files\AM.SALES VPN\..." пробелы есть).
+    // Предыдущая обёртка через PowerShell Start-Process ломалась на пути
+    // с пробелом: sing-box получал "-c C:\Program" вместо полного пути.
+    if (m_proc) {
+        m_proc->kill();
+        m_proc->waitForFinished(1500);
+        m_proc->deleteLater();
+    }
+    m_proc = new QProcess(this);
+    m_proc->setProgram(sb);
+    m_proc->setArguments({QStringLiteral("run"),
+                          QStringLiteral("-c"),
+                          QDir::toNativeSeparators(cfgPath)});
+    m_proc->setWorkingDirectory(QDir::toNativeSeparators(workDir));
+    m_proc->setStandardOutputFile(logPath, QIODevice::Truncate);
+    m_proc->setStandardErrorFile(errLog,  QIODevice::Truncate);
+    // Скрыть консольное окно (CREATE_NO_WINDOW).
+    m_proc->setCreateProcessArgumentsModifier(
+        [](QProcess::CreateProcessArguments *a) {
+            a->flags |= CREATE_NO_WINDOW;
+        });
+    m_proc->start();
 
     // Через 5 сек проверяем: (1) поднялся ли sing-box, (2) ЕСТЬ ЛИ ИНЕТ.
     // Если sing-box работает, но интернета нет (туннель порвал маршрут) —
