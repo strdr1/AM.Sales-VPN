@@ -1,0 +1,5 @@
+{
+  "version": "1.0.0",
+  "url": "https://github.com/strdr1/AM.Sales-VPN/releases/latest/download/AmSalesVPN-Setup.exe",
+  "notes": "Первая версия: VPN (VLESS+REALITY), обход DPI (zapret), Telegram-прокси через Cloudflare, диагностика, автообновление."
+}
