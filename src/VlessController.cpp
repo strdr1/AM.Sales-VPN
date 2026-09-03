@@ -1,6 +1,7 @@
 #include "VlessController.h"
 #include "Store.h"
 #include "AdminCheck.h"
+#include "ProxyEnv.h"
 
 #ifdef Q_OS_WIN
 #  include <windows.h>  // CREATE_NO_WINDOW для скрытия консоли sing-box
@@ -32,6 +33,21 @@
 //   - правила маршрута: домены .ru и geoip-ru → direct (мимо VPN).
 // ─────────────────────────────────────────────────────────────────────────
 
+namespace {
+// Порт локального mixed-inbound (SOCKS5 + HTTP на одном порту).
+// 12335, а не 12334 — 12334 занят Hiddify. На одинаковом порту тот,
+// кто стартует вторым, падает с "address already in use", а ещё
+// HTTPS_PROXY двух клиентов затирают друг друга.
+constexpr int kProxyPort = 12335;
+
+QString proxyUrl(const char *scheme)
+{
+    return QStringLiteral("%1://127.0.0.1:%2")
+        .arg(QLatin1String(scheme))
+        .arg(kProxyPort);
+}
+} // namespace
+
 VlessController::VlessController(Store *store, QObject *parent)
     : QObject(parent), m_store(store)
 {
@@ -45,8 +61,20 @@ VlessController::VlessController(Store *store, QObject *parent)
         m_routeRuDirect = m_store->setting(
             QStringLiteral("routeRuDirect"), true).toBool();
         // tg-прокси ссылка: из настроек либо дефолтная (наш mtg-сервер).
+        // MTProto-прокси: работает на 78.17.103.241:80 (mtg docker с fake-TLS
+        // hostname 78-17-103-241.nip.io — реально резолвится в наш IP, DPI
+        // не находит подделку). Обновлено 2026-08.
+        const QString kDefaultTgProxy = QStringLiteral(
+            "tg://proxy?server=78.17.103.241&port=80&secret=7rVGQI1pZlrs_88UE4Y9JLQ3OC0xNy0xMDMtMjQxLm5pcC5pbw");
         m_tgProxyLink = m_store->setting(QStringLiteral("tgProxyLink"),
-            QStringLiteral("tg://proxy?server=155.212.228.232&port=8443&secret=7pwrj8t67zLQ4Q3gAljWB4tnb29nbGUuY29t")).toString();
+            kDefaultTgProxy).toString();
+        // Миграция: старые ссылки (155.212.228.232 или прошлый secret ee1b...)
+        // принудительно заменяем на актуальную. Если юзер вбил свою — не трогаем.
+        if (m_tgProxyLink.contains(QStringLiteral("155.212.228.232"))
+            || m_tgProxyLink.contains(QStringLiteral("7ht9UgX1yndXqSIryN8eskJ3Yi5ydQ"))) {
+            m_tgProxyLink = kDefaultTgProxy;
+            m_store->setSetting(QStringLiteral("tgProxyLink"), m_tgProxyLink);
+        }
         // Сайты-исключения.
         m_bypassSites = m_store->setting(QStringLiteral("bypassSites")).toStringList();
         // Использовать ли zapret (по умолчанию да).
@@ -517,6 +545,16 @@ QString VlessController::buildConfig(const Server &s) const
     tun["strict_route"] = false;   // не воюем жёстко за маршрут
     tun["stack"] = "system";
 
+    // Inbound MIXED (SOCKS5 + HTTP на одном порту) — для CLI/Node/Python
+    // приложений которые обходят TUN и требуют явный HTTPS_PROXY.
+    // Классический пример — Claude Code, git через libcurl, npm, pip.
+    // Локально на 127.0.0.1:12335 — не смотрит наружу (12334 занят Hiddify).
+    QJsonObject mixed;
+    mixed["type"] = "mixed";
+    mixed["tag"] = "mixed-in";
+    mixed["listen"] = "127.0.0.1";
+    mixed["listen_port"] = kProxyPort;
+
     // Outbounds: только proxy + direct (формат sing-box 1.12 — без dns-out).
     QJsonArray outbounds;
     outbounds.append(vless);
@@ -603,7 +641,7 @@ QString VlessController::buildConfig(const Server &s) const
     QJsonObject root;
     root["log"] = QJsonObject{{"level","warn"}};
     root["dns"] = dns;
-    root["inbounds"] = QJsonArray{ tun };
+    root["inbounds"] = QJsonArray{ tun, mixed };
     root["outbounds"] = outbounds;
     root["route"] = route;
     root["experimental"] = experimental;
@@ -719,6 +757,13 @@ void VlessController::connectVpn()
             setConnected(true);
             setStatus(QStringLiteral("Подключено · %1").arg(s.name));
             m_consecFailures = 0;
+            // Прописываем env-переменные для CLI (Claude Code, git, npm и т.д.).
+            // MIXED-inbound слушает 127.0.0.1:12335 — там и SOCKS5 и HTTP proxy.
+            // Новые терминалы после broadcast сразу увидят HTTPS_PROXY.
+            ProxyEnv::setProxy(
+                proxyUrl("socks5"),
+                proxyUrl("http"),
+                QStringLiteral("User"));
             // С этого момента keep-alive дёргается каждые 15 сек —
             // при обрыве сам поднимет sing-box обратно.
             if (m_userWantsConnected && !m_keepAliveTimer->isActive())
@@ -746,6 +791,9 @@ void VlessController::disconnectVpn()
     QProcess::startDetached(QStringLiteral("taskkill"),
         {QStringLiteral("/F"), QStringLiteral("/IM"),
          QStringLiteral("sing-box.exe")});
+    // Убираем env-переменные — иначе CLI-программы будут стучать в
+    // мёртвый 127.0.0.1:12335 и получать "connection refused".
+    ProxyEnv::clearProxy(QStringLiteral("User"));
     setConnected(false);
     setConnecting(false);
     setStatus(QStringLiteral("Не подключено"));

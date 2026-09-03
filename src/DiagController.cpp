@@ -85,11 +85,11 @@ void DiagController::checkInternet()
 void DiagController::checkServerTcp()
 {
     QTcpSocket sock;
-    sock.connectToHost(QStringLiteral("155.212.228.232"), 443);
+    sock.connectToHost(QStringLiteral("78.17.103.241"), 443);
     const bool ok = sock.waitForConnected(3500);
     sock.abort();
     if (ok)
-        addResult(QStringLiteral("Прямой сервер 155.212.228.232:443"),
+        addResult(QStringLiteral("Прямой сервер 78.17.103.241:443"),
                   QStringLiteral("ok"), QStringLiteral("TCP проходит"));
     else
         addResult(QStringLiteral("Прямой сервер"), QStringLiteral("warn"),

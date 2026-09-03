@@ -32,3 +32,6 @@ installer/output/
 *.tmp
 Thumbs.db
 .DS_Store
+
+# Случайные медиа-файлы в корне (голосовые из чата и т.п.)
+*.ogg

@@ -44,6 +44,8 @@ qt_add_executable(AmSalesVPN
     src/TrayMenuHelper.h
     src/CfController.h
     src/CfController.cpp
+    src/ProxyEnv.h
+    src/ProxyEnv.cpp
 )
 
 # ── Подключаем QML-модуль (наш интерфейс) ───────────────────────────────
