@@ -817,10 +817,24 @@ Window {
                                     onClicked: { if (bypassInput.text.trim().length) { Vpn.addBypassSite(bypassInput.text.trim()); bypassInput.text=""; } } }
                             }
                         }
-                        Repeater {
+                        // Fixed-height list: past 5 rows it scrolls instead of pushing
+                        // the sections below (updates button) off the window.
+                        ListView {
+                            id: bypassList
+                            readonly property int rowH: 24
+                            readonly property int maxRows: 5
+                            Layout.fillWidth: true
+                            Layout.topMargin: count > 0 ? 6 : 0
+                            Layout.preferredHeight: Math.min(count, maxRows) * rowH
+                            clip: true
                             model: Vpn.bypassSites
-                            RowLayout {
-                                Layout.fillWidth: true; Layout.topMargin: 6; spacing: 6
+                            boundsBehavior: Flickable.StopAtBounds
+                            ScrollBar.vertical: ScrollBar {
+                                policy: bypassList.count > bypassList.maxRows ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+                            }
+                            delegate: RowLayout {
+                                width: bypassList.width - (bypassList.count > bypassList.maxRows ? 10 : 0)
+                                height: bypassList.rowH; spacing: 6
                                 Text { Layout.fillWidth: true; text: "•  " + modelData; color: win.textLo; font.pixelSize: 12; elide: Text.ElideRight }
                                 Rectangle { width: 18; height: 18; radius: 0
                                     color: bdel.containsMouse ? Qt.rgba(0.9,0.3,0.2,0.25) : "transparent"
